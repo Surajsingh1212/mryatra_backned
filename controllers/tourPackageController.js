@@ -28,15 +28,57 @@ exports.createTourPackage = async (req, res) => {
       return data[field];
     };
 
+    // ✅ UPDATED: Parse new array fields for categories, sub-categories, destinations and sub-destinations
     data.inclusions = safeParse("inclusions") || [];
     data.exclusions = safeParse("exclusions") || [];
     data.transportModes = safeParse("transportModes") || [];
     data.hotels = safeParse("hotels") || [];
     data.itinerary = safeParse("itinerary") || [];
     
-    // NEW: Parse package pricing
+    // ✅ UPDATED: Parse packageCategories and packageSubCategories as arrays
+    if (data.packageCategories) {
+      data.packageCategories = safeParse("packageCategories");
+    }
+    
+    if (data.packageSubCategories) {
+      data.packageSubCategories = safeParse("packageSubCategories");
+    }
+    
+    // ✅ UPDATED: Parse mainDestinations and subDestinations as arrays
+    if (data.mainDestinations) {
+      data.mainDestinations = safeParse("mainDestinations");
+    }
+    
+    if (data.subDestinations) {
+      data.subDestinations = safeParse("subDestinations");
+    }
+    
     if (data.packagePricing) {
       data.packagePricing = safeParse("packagePricing");
+    }
+
+    // ✅ UPDATED: Validation for required fields including categories and destinations
+    if (!data.packageName || !data.duration || !data.nights) {
+      return res.status(400).json({
+        success: false,
+        message: "Package name, duration, and nights are required"
+      });
+    }
+
+    // ✅ UPDATED: Validate at least one category is selected
+    if (!data.packageCategories || data.packageCategories.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one package category is required"
+      });
+    }
+
+    // ✅ UPDATED: Validate at least one destination is selected
+    if (!data.mainDestinations || data.mainDestinations.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one destination is required"
+      });
     }
 
     // ✅ FIXED: Hotel Images Handling
@@ -109,10 +151,17 @@ exports.createTourPackage = async (req, res) => {
     const newPackage = new TourPackage(data);
     await newPackage.save();
 
+    // ✅ UPDATED: Populate multiple categories, sub-categories, destinations and sub-destinations
+    const populatedPackage = await TourPackage.findById(newPackage._id)
+      .populate("packageCategories", "name image")
+      .populate("packageSubCategories", "name image")
+      .populate("mainDestinations", "name image")
+      .populate("subDestinations", "name image");
+
     res.status(201).json({ 
       success: true,
       message: "Tour Package created successfully", 
-      package: newPackage 
+      package: populatedPackage 
     });
   } catch (error) {
     console.error("Error creating package:", error);
@@ -128,15 +177,19 @@ exports.createTourPackage = async (req, res) => {
 exports.getTourPackages = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = 8; // Fixed to 8 packages per page
+    const limit = 8;
     const skip = (page - 1) * limit;
 
     const packages = await TourPackage.find()
+      // ✅ UPDATED: Populate multiple categories, sub-categories, destinations and sub-destinations
+      .populate("packageCategories", "name image")
+      .populate("packageSubCategories", "name image")
+      .populate("mainDestinations", "name image")
+      .populate("subDestinations", "name image")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    // Get total count for pagination info
     const totalPackages = await TourPackage.countDocuments();
     const totalPages = Math.ceil(totalPackages / limit);
 
@@ -164,7 +217,12 @@ exports.getTourPackages = async (req, res) => {
 // Get package by ID
 exports.getTourPackageById = async (req, res) => {
   try {
-    const tourPackage = await TourPackage.findById(req.params.id);
+    const tourPackage = await TourPackage.findById(req.params.id)
+      // ✅ UPDATED: Populate multiple categories, sub-categories, destinations and sub-destinations
+      .populate("packageCategories", "name image description")
+      .populate("packageSubCategories", "name image description")
+      .populate("mainDestinations", "name image description")
+      .populate("subDestinations", "name image description");
 
     if (!tourPackage) {
       return res.status(404).json({ 
@@ -173,56 +231,9 @@ exports.getTourPackageById = async (req, res) => {
       });
     }
 
-    // Parse stringified arrays if they exist
-    const parseIfString = (field) => {
-      if (typeof field === 'string') {
-        try {
-          return JSON.parse(field);
-        } catch (e) {
-          return field;
-        }
-      }
-      return field;
-    };
-
-    const normalized = {
-      _id: tourPackage._id,
-      packageName: tourPackage.packageName || "",
-      packageDescription: tourPackage.packageDescription || "",
-      packageType: tourPackage.packageType || [],
-      destinations: tourPackage.destinations || [],
-      packageCode: tourPackage.packageCode || "",
-      duration: tourPackage.duration || "",
-      nights: tourPackage.nights || "",
-      
-      // NEW: Package Pricing
-      packagePricing: tourPackage.packagePricing || {
-        standard: { base2Adults: "", base4Adults: "", base6Adults: "" },
-        deluxe: { base2Adults: "", base4Adults: "", base6Adults: "" },
-        extraAdultPercentage: ""
-      },
-
-      bookingType: tourPackage.bookingType || "enquiry",
-      status: tourPackage.status || "active",
-      quantity: tourPackage.quantity || "",
-      notes: tourPackage.notes || "",
-      mainImage: tourPackage.mainImage || null,
-      galleryImages: tourPackage.galleryImages || [],
-      inclusions: tourPackage.inclusions || [],
-      exclusions: tourPackage.exclusions || [],
-      transportModes: tourPackage.transportModes || [],
-      hotels: tourPackage.hotels || [],
-      itinerary: tourPackage.itinerary || [],
-      pickupLocation: tourPackage.pickupLocation || "",
-      dropLocation: tourPackage.dropLocation || "",
-      packageAvailability: tourPackage.packageAvailability || "available",
-      createdAt: tourPackage.createdAt,
-      updatedAt: tourPackage.updatedAt
-    };
-
     res.status(200).json({
       success: true,
-      data: normalized
+      data: tourPackage
     });
   } catch (error) {
     console.error("Error fetching package:", error);
@@ -233,7 +244,7 @@ exports.getTourPackageById = async (req, res) => {
   }
 };
 
-// Update package
+// Update package (similar updates as create)
 exports.updateTourPackage = async (req, res) => {
   try {
     let data = req.body;
@@ -247,11 +258,21 @@ exports.updateTourPackage = async (req, res) => {
       });
     }
 
+    // Convert numeric fields to numbers
+    if (data.duration) {
+      data.duration = parseInt(data.duration);
+    }
+    if (data.nights) {
+      data.nights = parseInt(data.nights);
+    }
+    if (data.quantity) {
+      data.quantity = parseInt(data.quantity);
+    }
+
     // Handle main image - only update if new one is provided
     if (req.files?.mainImage && req.files.mainImage[0]) {
       data.mainImage = req.files.mainImage[0].filename;
     } else {
-      // Preserve existing main image
       data.mainImage = existingPackage.mainImage;
     }
 
@@ -260,7 +281,6 @@ exports.updateTourPackage = async (req, res) => {
       const newGalleryImages = req.files.galleryImages.map(file => file.filename);
       data.galleryImages = [...(existingPackage.galleryImages || []), ...newGalleryImages];
     } else {
-      // Preserve existing gallery images
       data.galleryImages = existingPackage.galleryImages || [];
     }
 
@@ -282,12 +302,62 @@ exports.updateTourPackage = async (req, res) => {
     data.exclusions = safeParse("exclusions") || [];
     data.transportModes = safeParse("transportModes") || [];
     
-    // NEW: Parse package pricing
-    if (data.packagePricing) {
-      data.packagePricing = safeParse("packagePricing");
+    // ✅ UPDATED: Parse new array fields for categories, sub-categories, destinations and sub-destinations
+    if (data.packageCategories) {
+      data.packageCategories = safeParse("packageCategories");
+    }
+    
+    if (data.packageSubCategories) {
+      data.packageSubCategories = safeParse("packageSubCategories");
+    }
+    
+    if (data.mainDestinations) {
+      data.mainDestinations = safeParse("mainDestinations");
+    }
+    
+    if (data.subDestinations) {
+      data.subDestinations = safeParse("subDestinations");
     }
 
-    // ✅ FIXED: Hotel Images Handling for Update - Preserve existing images
+    if (data.packagePricing) {
+      data.packagePricing = safeParse("packagePricing");
+      
+      // Convert package pricing fields to numbers
+      if (data.packagePricing && typeof data.packagePricing === 'object') {
+        const pricing = data.packagePricing;
+        if (pricing.standard) {
+          pricing.standard.base2Adults = parseFloat(pricing.standard.base2Adults) || 0;
+          pricing.standard.base4Adults = parseFloat(pricing.standard.base4Adults) || 0;
+          pricing.standard.base6Adults = parseFloat(pricing.standard.base6Adults) || 0;
+        }
+        if (pricing.deluxe) {
+          pricing.deluxe.base2Adults = parseFloat(pricing.deluxe.base2Adults) || 0;
+          pricing.deluxe.base4Adults = parseFloat(pricing.deluxe.base4Adults) || 0;
+          pricing.deluxe.base6Adults = parseFloat(pricing.deluxe.base6Adults) || 0;
+        }
+        if (pricing.extraAdultPercentage) {
+          pricing.extraAdultPercentage = parseFloat(pricing.extraAdultPercentage) || 0;
+        }
+      }
+    }
+
+    // ✅ UPDATED: Validate at least one category is selected for update
+    if (!data.packageCategories || data.packageCategories.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one package category is required"
+      });
+    }
+
+    // ✅ UPDATED: Validate at least one destination is selected for update
+    if (!data.mainDestinations || data.mainDestinations.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one destination is required"
+      });
+    }
+
+    // Hotel Images Handling for Update
     if (req.files?.hotelImages && req.files.hotelImages.length > 0) {
       console.log("Processing hotel images for update...");
       
@@ -299,103 +369,57 @@ exports.updateTourPackage = async (req, res) => {
         ? hotelTypes 
         : (hotelTypes ? [hotelTypes] : []);
       
-      // Group new images by hotel type
-      const newHotelImagesByType = {};
+      // Group images by hotel type
+      const hotelImagesByType = {};
       
-      // Initialize for selected hotels with existing images
+      // Initialize with existing images
       data.hotels.forEach(hotel => {
         if (hotel.selected) {
-          // Find existing hotel data to preserve images
-          const existingHotel = existingPackage.hotels.find(h => h.type === hotel.type);
-          newHotelImagesByType[hotel.type] = existingHotel?.images || [];
+          hotelImagesByType[hotel.type] = hotel.existingImages || [];
         }
       });
       
       // Distribute new images to their respective hotel types
       hotelImages.forEach((file, index) => {
         const type = hotelTypesArray[index];
-        if (type && newHotelImagesByType[type]) {
-          newHotelImagesByType[type].push(file.filename);
+        if (type && hotelImagesByType[type]) {
+          hotelImagesByType[type].push(file.filename);
         }
       });
       
-      // Assign combined images (existing + new) to the correct hotels
+      // Assign images to the correct hotels
       data.hotels.forEach(hotel => {
-        if (hotel.selected && newHotelImagesByType[hotel.type]) {
-          hotel.images = newHotelImagesByType[hotel.type];
-        } else if (hotel.selected) {
-          // If no new images but hotel is selected, preserve existing images
-          const existingHotel = existingPackage.hotels.find(h => h.type === hotel.type);
-          hotel.images = existingHotel?.images || [];
-        }
-      });
-    } else {
-      // If no new hotel images, preserve existing hotel images
-      data.hotels.forEach(hotel => {
-        if (hotel.selected) {
-          const existingHotel = existingPackage.hotels.find(h => h.type === hotel.type);
-          hotel.images = existingHotel?.images || [];
+        if (hotel.selected && hotelImagesByType[hotel.type]) {
+          hotel.images = hotelImagesByType[hotel.type];
         }
       });
     }
 
-    // ✅ FIXED: Itinerary Images Handling for Update - Preserve existing images
+    // Itinerary Images Handling for Update
     if (req.files?.itineraryImages && req.files.itineraryImages.length > 0) {
       console.log("Processing itinerary images for update...");
       
       const itineraryImages = req.files.itineraryImages;
       const itinImages = [...itineraryImages];
       
-      // Preserve existing itinerary structure first
-      const updatedItinerary = data.itinerary.map((day, index) => {
-        const existingDay = existingPackage.itinerary[index];
-        return {
-          ...day,
-          image: existingDay?.image || null // Preserve existing image
-        };
-      });
-      
-      // Assign new images to itinerary days sequentially
-      let imageIndex = 0;
-      updatedItinerary.forEach((day, index) => {
-        if (itinImages.length > 0 && imageIndex < itinImages.length) {
-          // Replace existing image with new one if available
-          day.image = itinImages[imageIndex].filename;
-          imageIndex++;
+      // Assign new images to itinerary days that don't have existing images
+      data.itinerary.forEach((day, index) => {
+        if (itinImages.length > 0 && !day.existingImage) {
+          day.image = itinImages.shift().filename;
         }
       });
-      
-      data.itinerary = updatedItinerary;
-    } else {
-      // If no new itinerary images, preserve existing images
-      data.itinerary = data.itinerary.map((day, index) => {
-        const existingDay = existingPackage.itinerary[index];
-        return {
-          ...day,
-          image: existingDay?.image || day.image || null
-        };
-      });
     }
-
-    // Ensure all arrays are properly set
-    data.inclusions = data.inclusions || [];
-    data.exclusions = data.exclusions || [];
-    data.transportModes = data.transportModes || [];
-    data.hotels = data.hotels || [];
-    data.itinerary = data.itinerary || [];
-
-    console.log("Final data to update:", {
-      hotels: data.hotels,
-      itinerary: data.itinerary.map(d => ({ day: d.day, hasImage: !!d.image })),
-      galleryImages: data.galleryImages?.length,
-      mainImage: data.mainImage
-    });
 
     const updatedPackage = await TourPackage.findByIdAndUpdate(
       req.params.id,
       data,
       { new: true, runValidators: true }
-    );
+    )
+    // ✅ UPDATED: Populate multiple categories, sub-categories, destinations and sub-destinations
+    .populate("packageCategories", "name image")
+    .populate("packageSubCategories", "name image")
+    .populate("mainDestinations", "name image")
+    .populate("subDestinations", "name image");
 
     if (!updatedPackage) {
       return res.status(404).json({ 
@@ -417,7 +441,8 @@ exports.updateTourPackage = async (req, res) => {
     });
   }
 };
-// Delete package
+
+// Delete package (remains the same)
 exports.deleteTourPackage = async (req, res) => {
   try {
     const deletedPackage = await TourPackage.findByIdAndDelete(req.params.id);
@@ -442,6 +467,7 @@ exports.deleteTourPackage = async (req, res) => {
   }
 };
 
+// Filter packages (update population)
 exports.getFilteredTourPackages = async (req, res) => {
   try {
     const {
@@ -451,8 +477,11 @@ exports.getFilteredTourPackages = async (req, res) => {
       minPrice,
       maxPrice,
       duration,
-      destinations,
-      packageTypes,
+      mainDestination,
+      packageCategory,
+      packageSubCategory,
+      packageCategories,
+      packageSubCategories,
       sortBy = 'createdAt',
       sortOrder = 'desc'
     } = req.query;
@@ -464,8 +493,7 @@ exports.getFilteredTourPackages = async (req, res) => {
     if (search) {
       filter.$or = [
         { packageName: { $regex: search, $options: 'i' } },
-        { packageDescription: { $regex: search, $options: 'i' } },
-        { 'destinations': { $in: [new RegExp(search, 'i')] } }
+        { packageDescription: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -490,29 +518,48 @@ exports.getFilteredTourPackages = async (req, res) => {
       filter.duration = { $in: durations.map(d => parseInt(d)) };
     }
 
-    // Destinations filter
-    if (destinations) {
-      const destArray = Array.isArray(destinations) ? destinations : [destinations];
-      filter.destinations = { $in: destArray.map(d => new RegExp(d, 'i')) };
+    // ✅ UPDATED: Support both single and multiple destination filtering
+    if (mainDestination) {
+      if (Array.isArray(mainDestination)) {
+        filter.mainDestinations = { $in: mainDestination };
+      } else {
+        filter.mainDestinations = mainDestination;
+      }
     }
 
-    // Package types filter
-    if (packageTypes) {
-      const typesArray = Array.isArray(packageTypes) ? packageTypes : [packageTypes];
-      filter.packageType = { $in: typesArray.map(t => new RegExp(t, 'i')) };
+    // ✅ UPDATED: Support both single and multiple category filtering
+    if (packageCategory || packageCategories) {
+      const categories = packageCategories || packageCategory;
+      if (Array.isArray(categories)) {
+        filter.packageCategories = { $in: categories };
+      } else {
+        filter.packageCategories = categories;
+      }
     }
 
-    // Sort configuration
+    // ✅ UPDATED: Support both single and multiple sub-category filtering
+    if (packageSubCategory || packageSubCategories) {
+      const subCategories = packageSubCategories || packageSubCategory;
+      if (Array.isArray(subCategories)) {
+        filter.packageSubCategories = { $in: subCategories };
+      } else {
+        filter.packageSubCategories = subCategories;
+      }
+    }
+
     const sortConfig = {};
     sortConfig[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    // Execute query with pagination
     const packages = await TourPackage.find(filter)
+      // ✅ UPDATED: Populate multiple categories, sub-categories, destinations and sub-destinations
+      .populate("packageCategories", "name image")
+      .populate("packageSubCategories", "name image")
+      .populate("mainDestinations", "name image")
+      .populate("subDestinations", "name image")
       .sort(sortConfig)
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
-    // Get total count for pagination
     const total = await TourPackage.countDocuments(filter);
 
     res.status(200).json({

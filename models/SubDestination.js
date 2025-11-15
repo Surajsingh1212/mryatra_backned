@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
-const tourCategorySchema = new mongoose.Schema({
+const subDestinationSchema = new mongoose.Schema({
+  destinationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Destination",
+    required: true
+  },
   name: { type: String, required: true },
   description: { type: String, required: true },
   image: { type: String, required: true },
@@ -8,4 +13,4 @@ const tourCategorySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model("TourCategory", tourCategorySchema);
+module.exports = mongoose.model("SubDestination", subDestinationSchema);
