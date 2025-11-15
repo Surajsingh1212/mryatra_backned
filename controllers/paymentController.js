@@ -118,7 +118,7 @@ exports.createOrder = async (req, res) => {
 
         const shortId = packageId.slice(-6); 
         const timestamp = Date.now().toString().slice(-6); 
-        const receipt = `sih_${shortId}_${timestamp}`; 
+        const receipt = `mry_${shortId}_${timestamp}`; 
 
         const options = {
             amount: amountInPaise,

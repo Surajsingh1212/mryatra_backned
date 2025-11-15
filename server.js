@@ -33,6 +33,10 @@ app.use("/api/contact-enquiry", ContactEnquiryRoutes);
 const destinationRoutes = require("./routes/destinationRoutes");
 app.use("/api/destinations", destinationRoutes);
 
+// Sub Destination Routes
+const subDestinationRoutes = require("./routes/subDestinationRoutes");
+app.use("/api/sub-destinations", subDestinationRoutes);
+
 // Image Gallery Route 
 const imageGalleryRoutes = require("./routes/imageGalleryRoutes");
 app.use("/api/image-gallery", imageGalleryRoutes);
@@ -57,9 +61,13 @@ app.use("/api/offers", offerRoutes);
 const blogRoutes = require("./routes/blogRoutes");
 app.use("/api/blogs", blogRoutes);
 
-// Tour Categori 
+// Tour Categories Route
 const tourCategoryRoutes = require("./routes/tourCategoryRoutes");
 app.use("/api/tour-categories", tourCategoryRoutes);
+
+// Sub Tour Category Routes
+const subTourCategoryRoutes = require("./routes/tourSubCategoryRoutes");
+app.use("/api/sub-tour-categories", subTourCategoryRoutes);
 
 // Booking Route 
 const bookingRoutes = require("./routes/bookingRoutes");

@@ -1,67 +1,92 @@
 const mongoose = require("mongoose");
 
-const tourPackageSchema = new mongoose.Schema(
-  {
-    packageName: { type: String, required: true },
-    packageDescription: { type: String },
-    packageType: [{ type: String, required: true }],
-    destinations: [{ type: String }],
-    packageCode: { type: String, unique: true },
-    duration: { type: Number }, 
-    nights: { type: Number },
-    packagePricing: {
-      standard: {
-        base2Adults: { type: Number }, // Price for 2 adults
-        base4Adults: { type: Number }, // Price for 4 adults  
-        base6Adults: { type: Number }  // Price for 6 adults
-      },
-      deluxe: {
-        base2Adults: { type: Number }, // Price for 2 adults
-        base4Adults: { type: Number }, // Price for 4 adults
-        base6Adults: { type: Number }  // Price for 6 adults
-      },
-      extraAdultPercentage: { type: Number } // e.g., 55 for 55%
+const tourPackageSchema = new mongoose.Schema({
+  packageName: { type: String, required: true },
+  packageDescription: { type: String },
+  packageCode: { type: String },
+  
+  // ✅ UPDATED: Multiple categories and sub-categories
+  packageCategories: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "TourCategory",
+    required: true 
+  }],
+  packageSubCategories: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "TourSubCategory" 
+  }],
+  
+  // ✅ UPDATED: Multiple destinations and sub-destinations
+  mainDestinations: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "Destination",
+    required: true 
+  }],
+  subDestinations: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "SubDestination" 
+  }],
+  
+  duration: { type: Number, required: true },
+  nights: { type: Number, required: true },
+  
+  // Package Pricing
+  packagePricing: {
+    standard: {
+      base2Adults: { type: Number, default: 0 },
+      base4Adults: { type: Number, default: 0 },
+      base6Adults: { type: Number, default: 0 }
     },
-
-    // Booking info
-    bookingType: { type: String, enum: ["payment", "enquiry"], default: "enquiry" },
-    status: { type: String, enum: ["active", "inactive"], default: "active" },
-    quantity: { type: Number, default: 0 },
-
-    // Lists
-    inclusions: [{ type: String }],
-    exclusions: [{ type: String }],
-
-    itinerary: [
-      {
-        day: Number,
-        title: String,
-        description: String,
-        image: String, // file path
-      },
-    ],
-
-    hotels: [
-      {
-        type: { 
-          type: String, 
-          enum: ["Standard", "Deluxe"] 
-        },
-        images: [String], 
-      },
-    ],
-
-    pickupLocation: { type: String },
-    dropLocation: { type: String },
-    packageAvailability: { type: String, enum: ["available", "not_available"], default: "available" },
-    transportModes: [{ type: String }],
-
-    notes: { type: String },
-
-    mainImage: { type: String },
-    galleryImages: [String],
+    deluxe: {
+      base2Adults: { type: Number, default: 0 },
+      base4Adults: { type: Number, default: 0 },
+      base6Adults: { type: Number, default: 0 }
+    },
+    extraAdultPercentage: { type: Number, default: 0 }
   },
-  { timestamps: true }
-);
+  
+  // ✅ FIXED: Booking Type - Add "instant" to enum
+  bookingType: { type: String, enum: ["payment", "enquiry", "instant"], required: true },
+  status: { type: String, enum: ["active", "inactive"], default: "active" },
+  quantity: { type: Number, default: 0 },
+  
+  // ✅ FIXED: Transport Modes - Allow objects or update frontend
+  transportModes: [{
+    mode: { type: String },
+    description: { type: String }
+  }],
+  
+  inclusions: [{ type: String }],
+  exclusions: [{ type: String }],
+  
+  // Itinerary
+  itinerary: [{
+    day: { type: Number, required: true },
+    title: { type: String, required: true },
+    description: { type: String },
+    image: { type: String } 
+  }],
+  
+  // Hotels
+  hotels: [{
+    type: { type: String, enum: ["Standard", "Deluxe"], required: true },
+    selected: { type: Boolean, default: false },
+    images: [{ type: String }] // Storing filenames
+  }],
+  
+  // Locations
+  pickupLocation: { type: String },
+  dropLocation: { type: String },
+  packageAvailability: { type: String, enum: ["available", "not_available"], default: "available" },
+  
+  // Media
+  mainImage: { type: String },
+  galleryImages: [{ type: String }],
+  
+  notes: { type: String },
+  
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
 
 module.exports = mongoose.model("TourPackage", tourPackageSchema);
