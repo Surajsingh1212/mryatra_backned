@@ -302,7 +302,7 @@ exports.updateTourPackage = async (req, res) => {
     data.exclusions = safeParse("exclusions") || [];
     data.transportModes = safeParse("transportModes") || [];
     
-    // ✅ UPDATED: Parse new array fields for categories, sub-categories, destinations and sub-destinations
+    // Parse categories and destinations
     if (data.packageCategories) {
       data.packageCategories = safeParse("packageCategories");
     }
@@ -341,7 +341,7 @@ exports.updateTourPackage = async (req, res) => {
       }
     }
 
-    // ✅ UPDATED: Validate at least one category is selected for update
+    // Validate categories and destinations
     if (!data.packageCategories || data.packageCategories.length === 0) {
       return res.status(400).json({
         success: false,
@@ -349,7 +349,6 @@ exports.updateTourPackage = async (req, res) => {
       });
     }
 
-    // ✅ UPDATED: Validate at least one destination is selected for update
     if (!data.mainDestinations || data.mainDestinations.length === 0) {
       return res.status(400).json({
         success: false,
@@ -357,55 +356,59 @@ exports.updateTourPackage = async (req, res) => {
       });
     }
 
-    // Hotel Images Handling for Update
-    if (req.files?.hotelImages && req.files.hotelImages.length > 0) {
-      console.log("Processing hotel images for update...");
-      
-      const hotelImages = req.files.hotelImages;
-      const hotelTypes = req.body.hotelTypes;
-      
-      // Convert hotelTypes to array if it's a string
-      const hotelTypesArray = Array.isArray(hotelTypes) 
-        ? hotelTypes 
-        : (hotelTypes ? [hotelTypes] : []);
-      
-      // Group images by hotel type
-      const hotelImagesByType = {};
-      
-      // Initialize with existing images
-      data.hotels.forEach(hotel => {
+    // FIX: Hotel Images Handling for Update - Preserve existing images
+    if (data.hotels && data.hotels.length > 0) {
+      data.hotels.forEach((hotel, index) => {
         if (hotel.selected) {
-          hotelImagesByType[hotel.type] = hotel.existingImages || [];
-        }
-      });
-      
-      // Distribute new images to their respective hotel types
-      hotelImages.forEach((file, index) => {
-        const type = hotelTypesArray[index];
-        if (type && hotelImagesByType[type]) {
-          hotelImagesByType[type].push(file.filename);
-        }
-      });
-      
-      // Assign images to the correct hotels
-      data.hotels.forEach(hotel => {
-        if (hotel.selected && hotelImagesByType[hotel.type]) {
-          hotel.images = hotelImagesByType[hotel.type];
+          // If new images are uploaded, use them, otherwise preserve existing images
+          if (req.files?.hotelImages && req.files.hotelImages.length > 0) {
+            const hotelImages = req.files.hotelImages;
+            const hotelTypes = req.body.hotelTypes;
+            
+            const hotelTypesArray = Array.isArray(hotelTypes) 
+              ? hotelTypes 
+              : (hotelTypes ? [hotelTypes] : []);
+            
+            // Filter images for this specific hotel type
+            const hotelTypeImages = [];
+            hotelImages.forEach((file, imgIndex) => {
+              if (hotelTypesArray[imgIndex] === hotel.type) {
+                hotelTypeImages.push(file.filename);
+              }
+            });
+            
+            if (hotelTypeImages.length > 0) {
+              hotel.images = hotelTypeImages;
+            } else {
+              // No new images for this hotel type, preserve existing ones
+              hotel.images = hotel.existingImages || [];
+            }
+          } else {
+            // No new hotel images at all, preserve existing ones
+            hotel.images = hotel.existingImages || [];
+          }
+        } else {
+          hotel.images = [];
         }
       });
     }
 
-    // Itinerary Images Handling for Update
-    if (req.files?.itineraryImages && req.files.itineraryImages.length > 0) {
-      console.log("Processing itinerary images for update...");
+    // FIX: Itinerary Images Handling for Update - Preserve existing images
+    if (data.itinerary && data.itinerary.length > 0) {
+      const itineraryImages = req.files?.itineraryImages || [];
+      let imageIndex = 0;
       
-      const itineraryImages = req.files.itineraryImages;
-      const itinImages = [...itineraryImages];
-      
-      // Assign new images to itinerary days that don't have existing images
-      data.itinerary.forEach((day, index) => {
-        if (itinImages.length > 0 && !day.existingImage) {
-          day.image = itinImages.shift().filename;
+      data.itinerary.forEach((day) => {
+        // If a new image is provided for this day, use it
+        if (day.hasImage && itineraryImages[imageIndex]) {
+          day.image = itineraryImages[imageIndex].filename;
+          imageIndex++;
+        } else if (day.existingImage) {
+          // Otherwise, preserve the existing image
+          day.image = day.existingImage;
+        } else {
+          // No image for this day
+          day.image = null;
         }
       });
     }
@@ -415,7 +418,6 @@ exports.updateTourPackage = async (req, res) => {
       data,
       { new: true, runValidators: true }
     )
-    // ✅ UPDATED: Populate multiple categories, sub-categories, destinations and sub-destinations
     .populate("packageCategories", "name image")
     .populate("packageSubCategories", "name image")
     .populate("mainDestinations", "name image")
@@ -441,7 +443,6 @@ exports.updateTourPackage = async (req, res) => {
     });
   }
 };
-
 // Delete package (remains the same)
 exports.deleteTourPackage = async (req, res) => {
   try {
